@@ -53,7 +53,7 @@ class DQNNet(nn.Module):
 
 class GamePolicy():
     def __init__(self, dqnnet=None, init_epoch = 0) -> None:
-        self.model_save_path = "dqnmodel_0_10.model"
+        self.model_save_path = "dqnmodel_0_50.model"
         self.model_load_path = "dqnmodel.model"
         self.idx = 0
         '''
