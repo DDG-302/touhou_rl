@@ -1,5 +1,3 @@
-from argparse import Action
-from turtle import update
 import torch
 import torch.nn as nn
 import config
@@ -106,12 +104,12 @@ class GamePolicy():
         '''
         if(len(self.img_stack) < config.img_stack_num):
             # 直接插入到img_stack
-            self.img_stack.append(img/255)
+            self.img_stack.append(img)
             self.idx = (self.idx + 1) % config.img_stack_num
             return None
         else:
             # 更新img_stack
-            self.img_stack[self.idx] = img/255
+            self.img_stack[self.idx] = img
             self.idx = (self.idx + 1) % config.img_stack_num
 
         rand = random.random()
@@ -122,8 +120,9 @@ class GamePolicy():
         while(j != self.idx):
             a.append(self.img_stack[j])
             j = (j + 1) % len(self.img_stack)
-
-        state = torch.tensor(a).transpose(0, 1).to(config.device)
+        state = torch.tensor(a, dtype=torch.float).transpose(0, 1).to(config.device)
+        state = (state - state.mean(1)) / (state.std(1) + 1e-10)
+        # print(state)
 
         if(rand < self.explore_rate):
         # if(False):
@@ -134,6 +133,8 @@ class GamePolicy():
             with torch.no_grad():
                 net_result:torch.Tensor = self.dqnnet(state.to(torch.float))
                 action = net_result.flatten().argmax().item()
+                # print(net_result)
+                # print(action)
             
             
             
@@ -209,9 +210,9 @@ class GamePolicy():
             while(j != self.idx):
                 a.append(self.img_stack[j])
                 j = (j + 1) % len(self.img_stack)
-            state1 = torch.tensor(a).squeeze(1)
+            state1 = torch.tensor(a, dtype=torch.float).squeeze(1)
         else:
-            state1 = torch.zeros((4, config.game_scene_size[1], config.game_scene_size[0]))
+            state1 = torch.zeros((4, config.game_scene_size[1], config.game_scene_size[0]), dtype=torch.float)
         if(len(self.records) < self.record_limit):
             self.records.append((state0, action, reward, state1, is_done))
         else:
@@ -241,15 +242,16 @@ class GamePolicy():
             a = []
             for j in range(i, i + 4):
                 a.append(self.img_r[j])
-            state0 = torch.tensor(a).squeeze(1)
-
+            state0 = torch.tensor(a, dtype=torch.float).squeeze(1)
+            state0 = (state0 - state0.mean(0)) / (state0.std(0) + 1e-10)
             if(self.is_done_r[i]):
                 state1 = torch.zeros((4, config.game_scene_size[1], config.game_scene_size[0])).to(config.device)
             else:
                 a = []
                 for j in range(i+1, i + 5):
                     a.append(self.img_r[j])
-                state1 = torch.tensor(a).squeeze(1).to(config.device)
+                state1 = torch.tensor(a, dtype=torch.float).squeeze(1).to(config.device)
+                state1 = (state1 - state0.mean(0)) / (state1.std(0) + 1e-10)
             self.records.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_done_r[i]))
             if(self.is_done_r[i]):
                 i += 3

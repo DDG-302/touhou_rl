@@ -12,7 +12,7 @@ else:
     device = "cpu"
 
 # hyper param
-epsilon_decay = 0.98 # exploration: 0.98 ** epoch
+epsilon_decay = 0.99 # exploration: 0.99 ** epoch
 
 min_exploration = 0.01 
 
