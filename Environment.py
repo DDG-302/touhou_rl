@@ -5,7 +5,7 @@ import win32ui
 import win32con
 import psutil
 import pickle as pkl
-import move
+import Move
 import cv2
 import numpy as np
 import config
@@ -37,8 +37,12 @@ class TouhouEnvironment:
         self.done = False
 
         # todo: 还需插入重开指令
+        Move.click_with_scane_code(0x48)
+        Move.click_with_scane_code(0x2c)
 
         sleep(2) # 等待重开
+
+        Move.PressKey(0x2c)
 
         return config.alive_reward, self.__get_img()
 
@@ -73,7 +77,7 @@ class TouhouEnvironment:
         img.shape = (height, width, 4)
 
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) # (HWC)
-        img = img.shape = (1, 670, 580)
+        img.shape = (1, height, width) # (C, H, W)
         return img
 
     def __get_life(self):
@@ -92,11 +96,15 @@ class TouhouEnvironment:
                     you should feed this next_img to the POLICY,
                     the POLICY will handle the state
         '''
-        move.move([action+1])
+        win_handle = win32gui.FindWindow(0, u"搶曽抧楈揳丂乣 Subterranean Animism. ver 1.00a")
+        if(win_handle == 0):
+            raise Exception("game crashed...")
+        Move.move([action+1])
         current_life_count = self.__get_life()
-        if(current_life_count < self.life_count):
+        if(current_life_count < self.life_count or current_life_count < 0):
             if(current_life_count < 0):
                 self.done = True
+                Move.ReleaseKey(0x2C)
             reward = config.dead_penalty
             self.life_count = current_life_count
         else:
