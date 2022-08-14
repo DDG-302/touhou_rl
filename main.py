@@ -3,6 +3,7 @@ from Environment import TouhouEnvironment
 from Policy import GamePolicy
 from tqdm import tqdm
 import time
+import torch
 
 train_epoch = 10
 start_epoch = 0
@@ -42,6 +43,10 @@ for _ in pbar:
             print("game over...")
             break
     loss = policy.train()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    loss=loss.to(device)
+
     if(loss is not None):
         pbar.set_description("avgloss= %f"%loss)
     else:
