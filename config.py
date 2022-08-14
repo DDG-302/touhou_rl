@@ -22,6 +22,8 @@ batch_size = 16
 
 gamma = 0.85
 
+smooth_l1_beta = 1
+
 img_stack_num = 4
 
 # reward setting

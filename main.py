@@ -4,7 +4,7 @@ from Policy import GamePolicy
 from tqdm import tqdm
 import time
 
-train_epoch = 50
+train_epoch = 10
 start_epoch = 0
 
 env = TouhouEnvironment()
@@ -38,7 +38,6 @@ for _ in pbar:
         
         # end_time = time.perf_counter()
         # print("dleta time=", end_time-start_time)
-        
         if(env.done):
             print("game over...")
             break

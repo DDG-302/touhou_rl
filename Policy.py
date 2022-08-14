@@ -51,8 +51,8 @@ class DQNNet(nn.Module):
 
 class GamePolicy():
     def __init__(self, dqnnet=None, init_epoch = 0) -> None:
-        self.model_save_path = "dqnmodel_0_50.model"
-        self.model_load_path = "dqnmodel.model"
+        self.model_save_path = "dqnmodel_0_10.model"
+        self.model_load_path = "dqnmodel_0.model"
         self.idx = 0
         '''
         idx: 指向img_stack下一个写地址
@@ -64,7 +64,7 @@ class GamePolicy():
             self.__load_model()
 
 
-        self.opt = torch.optim.Adam(self.dqnnet.parameters(), lr=config.lr)
+        self.opt = torch.optim.Adam(self.dqnnet.parameters(), lr=config.lr, weight_decay=0.01)
         
         self.epoch = init_epoch
         self.explore_rate = max(config.epsilon_decay ** self.epoch, config.min_exploration)
@@ -127,14 +127,17 @@ class GamePolicy():
         if(rand < self.explore_rate):
         # if(False):
             # 随机探索， 不需要经过nn运算
+            print("random choice")
+            print()
             return random.randint(0, 4), state
 
         else:
             with torch.no_grad():
+                self.dqnnet.eval()
                 net_result:torch.Tensor = self.dqnnet(state.to(torch.float))
                 action = net_result.flatten().argmax().item()
-                # print(net_result)
-                # print(action)
+                print(net_result)
+                print(action)
             
             
             
@@ -163,7 +166,7 @@ class GamePolicy():
             state1 = data[2]
             is_done = data[3]
             with torch.no_grad():
-                v1:torch.Tensor = self.dqnnet(state1.to(torch.float32)).detach()
+                v1 = self.dqnnet(state1.to(torch.float32)).detach()
             self.dqnnet.train()
             v0 = self.dqnnet(state0.to(torch.float32))
             
@@ -174,19 +177,31 @@ class GamePolicy():
             for i in range(len(action)):
                 if(is_done[i]):
                     if(loss is None):
-                        loss = (v0[i][action[i]] - reward[i]) ** 2
+                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                        else:
+                            loss = abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
                     else:
-                        loss += (v0[i][action[i]] - reward[i]) ** 2
+                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss += (v0[i][action[i]] - reward[i]) ** 2
+                        else:
+                            loss += abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                        
                 else:
                     if(loss is None):
-                        loss = (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2
+                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss = 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                        else:
+                            loss = abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
                     else:
-                        loss += (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2
-
+                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                        else:
+                            loss += (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+            loss /= len(action)
             self.opt.zero_grad()
             loss.backward()
             self.opt.step()
-
             avg_loss += loss.detach()
             update_num += 1
 
@@ -251,7 +266,7 @@ class GamePolicy():
                 for j in range(i+1, i + 5):
                     a.append(self.img_r[j])
                 state1 = torch.tensor(a, dtype=torch.float).squeeze(1).to(config.device)
-                state1 = (state1 - state0.mean(0)) / (state1.std(0) + 1e-10)
+                state1 = (state1 - state1.mean(0)) / (state1.std(0) + 1e-10)
             self.records.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_done_r[i]))
             if(self.is_done_r[i]):
                 i += 3
