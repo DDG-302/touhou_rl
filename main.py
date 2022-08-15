@@ -5,8 +5,8 @@ import time
 import config
 import torch
 
-train_epoch = 10
-start_epoch = 0
+train_epoch = 15
+start_epoch = 10
 
 env = TouhouEnvironment()
 policy = GamePolicy(init_epoch=start_epoch)

@@ -41,7 +41,8 @@ class DQNNet(nn.Module):
         )
 
         self.fc = nn.Sequential(
-            nn.Linear(256 * int(config.game_scene_resize_to[1]/16) * int(config.game_scene_resize_to[0]/16), 128),
+            # nn.Linear(256 * int(config.game_scene_resize_to[1]/8) * int(config.game_scene_resize_to[0]/8), 128),
+            nn.Linear(92160, 128),
             nn.ReLU(),
             nn.Linear(128, 32),
             nn.ReLU(),
@@ -64,8 +65,8 @@ class DQNNet(nn.Module):
 
 class GamePolicy():
     def __init__(self, dqnnet=None, init_epoch = 0) -> None:
-        self.model_save_path = "dqnmodel_0_10.model"
-        self.model_load_path = "dqnmodel_0.model"
+        self.model_save_path = "dqnmodel_20_25.model"
+        self.model_load_path = "dqnmodel_10_20.model"
         self.idx = 0
         '''
         idx: 指向img_stack下一个写地址
@@ -179,6 +180,8 @@ class GamePolicy():
         # 1. 从records中取数据构建batch
         if(len(self.records) > config.batch_num * config.batch_size):
             mini_records = random.sample(self.records, k=config.batch_num * config.batch_size)
+        else:
+            mini_batch = self.records
         dataset = RecordDataset(mini_records)
         dataloader = DataLoader(
             dataset, config.batch_size,
@@ -234,9 +237,9 @@ class GamePolicy():
             avg_loss = avg_loss.to(config.device)
             avg_loss += loss.detach()
             update_num += 1
-
-        with open("train_data/avg_loss.txt", "a") as f:
-            f.write(str((avg_loss / update_num).item()) + "\n")
+        if(os.path.exists("train_data")): 
+            with open("train_data/avg_loss.txt", "a") as f:
+                f.write(str((avg_loss / update_num).item()) + "\n")
         self.epoch += 1
         return avg_loss.item() / update_num
 
@@ -279,10 +282,10 @@ class GamePolicy():
     def make_record(self):
         if(len(self.img_r) < 4):
             return
-        print("img:", len(self.img_r))
-        print("act:", len(self.action_r))
-        print("red:", len(self.reward_r))
-        print("end:", len(self.is_dead_r))
+        # print("img:", len(self.img_r))
+        # print("act:", len(self.action_r))
+        # print("red:", len(self.reward_r))
+        # print("end:", len(self.is_dead_r))
         state0 = None
         state1 = None
         for i in range(len(self.action_r)):
@@ -302,14 +305,15 @@ class GamePolicy():
             self.records.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_dead_r[i]))
             if(self.is_dead_r[i]):
                 i += 3
-                
+        
+
     def make_record_v2(self):
         if(len(self.img_r) < 1):
             return
-        print("img:", len(self.img_r))
-        print("act:", len(self.action_r))
-        print("red:", len(self.reward_r))
-        print("end:", len(self.is_dead_r))
+        # print("img:", len(self.img_r))
+        # print("act:", len(self.action_r))
+        # print("red:", len(self.reward_r))
+        # print("end:", len(self.is_dead_r))
         state0 = None
         state1 = None
         for i in range(len(self.action_r)):
@@ -319,7 +323,7 @@ class GamePolicy():
             state0 = torch.tensor(a, dtype=torch.float).squeeze(1)
             # state0 = (state0 - state0.mean(0)) / (state0.std(0) + 1e-10)
             if(self.is_dead_r[i]):
-                state1 = torch.zeros((4, config.game_scene_size[1], config.game_scene_size[0])).to(config.device)
+                state1 = torch.zeros((4, config.game_scene_resize_to[1], config.game_scene_resize_to[0])).to(config.device)
             else:
                 a = []
                 # print(i+1)
@@ -337,7 +341,7 @@ class GamePolicy():
             else:
                 self.records[self.record_head] = (state0, self.action_r[i], self.reward_r[i], state1, self.is_dead_r[i])
                 self.record_head = (self.record_head + 1) % self.record_limit
-
+        print("records_buffer:", len(self.records))
 
     def save_model(self):
         torch.save(self.dqnnet, self.model_save_path)

@@ -80,7 +80,7 @@ class TouhouEnvironment:
         # ref: https://www.cnblogs.com/HuaNeedsPills/p/10329763.html
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) # (HWC)
         img = cv2.resize(img, (config.game_scene_resize_to[0], config.game_scene_resize_to[1]))
-       
+        img = np.expand_dims(img, 0)
         
         win32gui.DeleteObject(saveBitMap.GetHandle())
         saveDC.DeleteDC()
