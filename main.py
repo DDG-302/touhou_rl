@@ -3,6 +3,7 @@ from Policy import GamePolicy
 from tqdm import tqdm
 import time
 import config
+import torch
 
 train_epoch = 4
 start_epoch = 21
@@ -50,6 +51,10 @@ for _ in pbar:
             print("game over...")
             break
     loss = policy.train()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    loss=loss.to(device)
+
     if(loss is not None):
         pbar.set_description("avgloss= %f"%loss)
     else:

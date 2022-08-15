@@ -55,6 +55,9 @@ class DQNNet(nn.Module):
             outpu_shape: (batchsize, 32, H, W)
             in my case, batchisize should be one
         '''
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        x = x.to(device)
+
         x = self.cnn(x)
         x = x.flatten(1)
         x = self.fc(x)
@@ -229,6 +232,8 @@ class GamePolicy():
             self.opt.zero_grad()
             loss.backward()
             self.opt.step()
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            avg_loss = avg_loss.to(device)
             avg_loss += loss.detach()
             update_num += 1
 
