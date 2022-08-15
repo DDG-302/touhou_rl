@@ -64,8 +64,8 @@ class DQNNet(nn.Module):
 
 class GamePolicy():
     def __init__(self, dqnnet=None, init_epoch = 0) -> None:
-        self.model_save_path = "dqnmodel_25_30.model"
-        self.model_load_path = "dqnmodel_21_25.model"
+        self.model_save_path = "dqnmodel_0_10.model"
+        self.model_load_path = "dqnmodel_0.model"
         self.idx = 0
         '''
         idx: 指向img_stack下一个写地址
@@ -87,12 +87,12 @@ class GamePolicy():
         '''
         record_head: 指向下一个写地址
         '''
-        self.records = [] # (statei, ri, ai, statei+1, is_done)
+        self.records = [] # (statei, ri, ai, statei+1, is_dead)
 
         self.img_r = []
         self.reward_r = []
         self.action_r = []
-        self.is_done_r = []
+        self.is_dead_r = []
 
         
 
@@ -106,7 +106,7 @@ class GamePolicy():
         self.img_r = []
         self.reward_r = []
         self.action_r = []
-        self.is_done_r = []
+        self.is_dead_r = []
 
     def sample_action(self, img):
         '''
@@ -179,7 +179,7 @@ class GamePolicy():
         # 1. 从records中取数据构建batch
         if(len(self.records) > config.batch_num * config.batch_size):
             mini_records = random.sample(self.records, k=config.batch_num * config.batch_size)
-        dataset = RecordDataset(self.records)
+        dataset = RecordDataset(mini_records)
         dataloader = DataLoader(
             dataset, config.batch_size,
             shuffle=True
@@ -193,7 +193,7 @@ class GamePolicy():
             state0 = data[0]
             action = data[1]
             state1 = data[2]
-            is_done = data[3]
+            is_dead = data[3]
             with torch.no_grad():
                 v1 = self.dqnnet(state1.to(torch.float32)).detach()
             self.dqnnet.train()
@@ -204,7 +204,7 @@ class GamePolicy():
             # 3. 计算损失
 
             for i in range(len(action)):
-                if(is_done[i]):
+                if(is_dead[i]):
                     if(loss is None):
                         if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
                             loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
@@ -240,7 +240,7 @@ class GamePolicy():
         self.epoch += 1
         return avg_loss.item() / update_num
 
-    def save_record(self,state0, action, reward, next_img, is_done):
+    def save_record(self,state0, action, reward, next_img, is_dead):
         '''
             action: sampled action
             reward: get reward from environment after excuting avtion
@@ -248,7 +248,7 @@ class GamePolicy():
         '''
         if(len(self.img_stack) < config.img_stack_num):
             return
-        if(is_done == False):
+        if(is_dead == False):
             j = self.idx
             a = []
             a.append(next_img/255)
@@ -260,21 +260,21 @@ class GamePolicy():
         else:
             state1 = torch.zeros((4, config.game_scene_size[1], config.game_scene_size[0]), dtype=torch.float)
         if(len(self.records) < self.record_limit):
-            self.records.append((state0, action, reward, state1, is_done))
+            self.records.append((state0, action, reward, state1, is_dead))
         else:
-            self.records[self.record_head] = (state0, action, reward, state1, is_done)
+            self.records[self.record_head] = (state0, action, reward, state1, is_dead)
         self.record_head += 1
         self.record_head %= self.record_limit
     
-    def save_record_simple(self, img=None, reward=None, action=None, is_done=None):
+    def save_record_simple(self, img=None, reward=None, action=None, is_dead=None):
         if(img is not None):
             self.img_r.append(img)
         if(reward is not None):
             self.reward_r.append(reward)
         if(action is not None):
             self.action_r.append(action)
-        if(is_done is not None):
-            self.is_done_r.append(is_done)
+        if(is_dead is not None):
+            self.is_dead_r.append(is_dead)
 
     def make_record(self):
         if(len(self.img_r) < 4):
@@ -282,7 +282,7 @@ class GamePolicy():
         print("img:", len(self.img_r))
         print("act:", len(self.action_r))
         print("red:", len(self.reward_r))
-        print("end:", len(self.is_done_r))
+        print("end:", len(self.is_dead_r))
         state0 = None
         state1 = None
         for i in range(len(self.action_r)):
@@ -291,7 +291,7 @@ class GamePolicy():
                 a.append(self.img_r[j])
             state0 = torch.tensor(a, dtype=torch.float).squeeze(1)
             state0 = (state0 - state0.mean(0)) / (state0.std(0) + 1e-10)
-            if(self.is_done_r[i]):
+            if(self.is_dead_r[i]):
                 state1 = torch.zeros((4, config.game_scene_size[1], config.game_scene_size[0])).to(config.device)
             else:
                 a = []
@@ -299,8 +299,8 @@ class GamePolicy():
                     a.append(self.img_r[j])
                 state1 = torch.tensor(a, dtype=torch.float).squeeze(1).to(config.device)
                 state1 = (state1 - state1.mean(0)) / (state1.std(0) + 1e-10)
-            self.records.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_done_r[i]))
-            if(self.is_done_r[i]):
+            self.records.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_dead_r[i]))
+            if(self.is_dead_r[i]):
                 i += 3
                 
     def make_record_v2(self):
@@ -309,7 +309,7 @@ class GamePolicy():
         print("img:", len(self.img_r))
         print("act:", len(self.action_r))
         print("red:", len(self.reward_r))
-        print("end:", len(self.is_done_r))
+        print("end:", len(self.is_dead_r))
         state0 = None
         state1 = None
         for i in range(len(self.action_r)):
@@ -318,12 +318,12 @@ class GamePolicy():
                 a.append(self.img_r[i][j])
             state0 = torch.tensor(a, dtype=torch.float).squeeze(1)
             # state0 = (state0 - state0.mean(0)) / (state0.std(0) + 1e-10)
-            if(self.is_done_r[i]):
+            if(self.is_dead_r[i]):
                 state1 = torch.zeros((4, config.game_scene_size[1], config.game_scene_size[0])).to(config.device)
             else:
                 a = []
                 # print(i+1)
-                # print("done:", self.is_done_r[i])
+                # print("done:", self.is_dead_r[i])
                 # print("stack len:",len(self.img_r[i+1]))
                 
                 for j in range(4):
@@ -331,11 +331,11 @@ class GamePolicy():
                 state1 = torch.tensor(a, dtype=torch.float).squeeze(1).to(config.device)
                 # state1 = (state1 - state1.mean(0)) / (state1.std(0) + 1e-10)
             
-            if(len(self.records) >= self.record_limit):
+            if(len(self.records) < self.record_limit):
                 self.record_head = (self.record_head + 1) % self.record_limit
-                self.records.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_done_r[i]))
+                self.records.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_dead_r[i]))
             else:
-                self.records[self.record_head] = (state0, self.action_r[i], self.reward_r[i], state1, self.is_done_r[i])
+                self.records[self.record_head] = (state0, self.action_r[i], self.reward_r[i], state1, self.is_dead_r[i])
                 self.record_head = (self.record_head + 1) % self.record_limit
 
 
@@ -354,7 +354,7 @@ class GamePolicy():
 class RecordDataset(Dataset):
     def __init__(self, record:list) -> None:
         '''
-        record: [(state0, action, reward, state1, is_done), (...)]
+        record: [(state0, action, reward, state1, is_dead), (...)]
         '''
         super().__init__()
         self.record = record

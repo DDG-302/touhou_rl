@@ -33,7 +33,7 @@ class TouhouEnvironment:
         '''
         return: reward, init_img
         '''
-        self.life_count =self.__get_life()
+        self.life_count = self.__get_life()
         self.done = False
 
         # todo: 还需插入重开指令
@@ -44,7 +44,7 @@ class TouhouEnvironment:
 
         Move.PressKey(0x2c)
 
-        return config.alive_reward, self.__get_img()
+        return config.alive_reward, self.__get_img(), False
 
         
 
@@ -80,7 +80,7 @@ class TouhouEnvironment:
         # ref: https://www.cnblogs.com/HuaNeedsPills/p/10329763.html
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) # (HWC)
         img = cv2.resize(img, (config.game_scene_resize_to[0], config.game_scene_resize_to[1]))
-        img.shape = (1, config.game_scene_resize_to[0], config.game_scene_resize_to[1]) # (C, H, W)
+       
         
         win32gui.DeleteObject(saveBitMap.GetHandle())
         saveDC.DeleteDC()
@@ -99,23 +99,27 @@ class TouhouEnvironment:
     def step(self, action):
         '''
         action: 0, 1, 2, 3, 4 -> up, down, left, right, idle
-        return: (reward, next_img)
+        return: (reward, next_img, is_dead)
         - next_img: this is not the state, 
                     you should feed this next_img to the POLICY,
                     the POLICY will handle the state
+        - is_dead: is *last* step cause dead or not
         '''
         win_handle = win32gui.FindWindow(0, u"搶曽抧楈揳丂乣 Subterranean Animism. ver 1.00a")
         if(win_handle == 0):
             raise Exception("game crashed...")
-        Move.move([action+1])
-        current_life_count = self.__get_life()
-        if(current_life_count < self.life_count or current_life_count < 0):
+        current_life_count = self.__get_life()    
+        is_dead = False
+        if(current_life_count < self.life_count):
+            is_dead = True
+        Move.move([action+1])         
+        if(current_life_count < 0):
             if(current_life_count < 0):
                 self.done = True
                 Move.ReleaseKey(0x2C)
             reward = config.dead_penalty
-            self.life_count = current_life_count
+            self.life_count = current_life_count  
         else:
             reward = config.alive_reward
-        return reward, self.__get_img()
+        return reward, self.__get_img(), is_dead
 
