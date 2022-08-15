@@ -75,7 +75,7 @@ def move(actions:list):
             continue
         PressKey(key[act])
     # PressKey(0x2d)
-    time.sleep(0.04)
+    time.sleep(0.02)
     for act in actions:
         if(act > 4):
             continue

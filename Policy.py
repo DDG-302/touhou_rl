@@ -14,12 +14,7 @@ class DQNNet(nn.Module):
         super().__init__()
         # input shape: (BCHW)
         self.cnn = nn.Sequential(
-            nn.Conv2d(int(config.img_stack_num), 8, 3, 1, 1),
-            nn.BatchNorm2d(8),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2, 0),
-
-            nn.Conv2d(8, 16, 3, 1, 1),
+            nn.Conv2d(int(config.img_stack_num), 16, 3, 1, 1),
             nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.MaxPool2d(2, 2, 0),
@@ -27,16 +22,32 @@ class DQNNet(nn.Module):
             nn.Conv2d(16, 32, 3, 1, 1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.MaxPool2d(2, 2, 0),
+
+            nn.Conv2d(32, 64, 3, 1, 1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2, 0),
+
+            nn.Conv2d(64, 128, 3, 1, 1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2, 0),
+
+            nn.Conv2d(128, 256, 3, 1, 1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+
         )
 
         self.fc = nn.Sequential(
-            nn.Linear(32 * int(config.game_scene_size[1]/4) * int(config.game_scene_size[0]/4), 32),
+            nn.Linear(256 * int(config.game_scene_resize_to[1]/16) * int(config.game_scene_resize_to[0]/16), 128),
             nn.ReLU(),
-            nn.Linear(32, 32),
+            nn.Linear(128, 32),
             nn.ReLU(),
-            nn.Linear(32, 16),
-            nn.ReLU(),
-            nn.Linear(16, 5) # 上 下 左 右 不动
+            nn.Linear(32, 5),# 上 下 左 右 不动
+            # nn.ReLU(),
+            # nn.Linear(16, 5) # 上 下 左 右 不动
         )
 
     def forward(self, x):
@@ -51,8 +62,8 @@ class DQNNet(nn.Module):
 
 class GamePolicy():
     def __init__(self, dqnnet=None, init_epoch = 0) -> None:
-        self.model_save_path = "dqnmodel_0_10.model"
-        self.model_load_path = "dqnmodel_0.model"
+        self.model_save_path = "dqnmodel_25_30.model"
+        self.model_load_path = "dqnmodel_21_25.model"
         self.idx = 0
         '''
         idx: 指向img_stack下一个写地址
@@ -85,8 +96,8 @@ class GamePolicy():
 
     def reset(self):
         self.dqnnet.eval()
-        self.record_head = 0
-        self.records = []
+        # self.record_head = 0
+        # self.records = []
         self.explore_rate = config.epsilon_decay ** self.epoch
         self.img_stack = []
 
@@ -107,30 +118,35 @@ class GamePolicy():
             self.img_stack.append(img)
             self.idx = (self.idx + 1) % config.img_stack_num
             return None
-        else:
+        elif(not config.use_policy_v2):
             # 更新img_stack
             self.img_stack[self.idx] = img
             self.idx = (self.idx + 1) % config.img_stack_num
-
         rand = random.random()
-        j = self.idx
-        a = []
-        a.append(self.img_stack[j])
-        j = (j + 1) % len(self.img_stack)
-        while(j != self.idx):
+        if(config.use_policy_v2):
+            # for i in range(len(self.img_stack)):
+            #     self.img_stack[i].shape = (config.game_scene_resize_to[1], config.game_scene_resize_to[0], 1)
+            #     cv2.imshow("1", self.img_stack[i])
+            #     cv2.waitKey()
+            state = torch.tensor(self.img_stack, dtype=torch.float).transpose(0, 1).to(config.device)
+        else:
+            j = self.idx
+            a = []
             a.append(self.img_stack[j])
             j = (j + 1) % len(self.img_stack)
-        state = torch.tensor(a, dtype=torch.float).transpose(0, 1).to(config.device)
-        state = (state - state.mean(1)) / (state.std(1) + 1e-10)
+            while(j != self.idx):
+                a.append(self.img_stack[j])
+                j = (j + 1) % len(self.img_stack)
+            state = torch.tensor(a, dtype=torch.float).transpose(0, 1).to(config.device)
+        # state = (state - state.mean(1)) / (state.std(1) + 1e-10)
         # print(state)
 
         if(rand < self.explore_rate):
         # if(False):
             # 随机探索， 不需要经过nn运算
-            print("random choice")
-            print()
-            return random.randint(0, 4), state
-
+            # print("random choice")
+            action = random.randint(0, 4)
+            # print("action:", action)
         else:
             with torch.no_grad():
                 self.dqnnet.eval()
@@ -138,18 +154,29 @@ class GamePolicy():
                 action = net_result.flatten().argmax().item()
                 print(net_result)
                 print(action)
-            
-            
+
+        if(config.use_policy_v2):        
+            record_img = []
+            for i in self.img_stack:
+                record_img.append(i)
+            self.img_r.append(record_img)
+            self.img_stack = []  # 等待下一次img_stack
+            self.idx = 0
+        
             
         return action, state
 
     def train(self):
-        self.make_record()
+        if(config.use_policy_v2):
+            self.make_record_v2()
+        else:
+            self.make_record()
         
         if(len(self.records) == 0):
             return None
         # 1. 从records中取数据构建batch
-        
+        if(len(self.records) > config.batch_num * config.batch_size):
+            mini_records = random.sample(self.records, k=config.batch_num * config.batch_size)
         dataset = RecordDataset(self.records)
         dataloader = DataLoader(
             dataset, config.batch_size,
@@ -177,13 +204,13 @@ class GamePolicy():
             for i in range(len(action)):
                 if(is_done[i]):
                     if(loss is None):
-                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                        if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
                             loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
                         else:
                             loss = abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
                     else:
-                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
-                            loss += (v0[i][action[i]] - reward[i]) ** 2
+                        if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss += 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
                         else:
                             loss += abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
                         
@@ -197,7 +224,7 @@ class GamePolicy():
                         if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
                             loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
                         else:
-                            loss += (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                            loss += abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
             loss /= len(action)
             self.opt.zero_grad()
             loss.backward()
@@ -205,7 +232,8 @@ class GamePolicy():
             avg_loss += loss.detach()
             update_num += 1
 
-
+        with open("train_data/avg_loss.txt", "a") as f:
+            f.write(str((avg_loss / update_num).item()) + "\n")
         self.epoch += 1
         return avg_loss / update_num
 
@@ -235,8 +263,9 @@ class GamePolicy():
         self.record_head += 1
         self.record_head %= self.record_limit
     
-    def save_record_simple(self, img, reward=None, action=None, is_done=None):
-        self.img_r.append(img)
+    def save_record_simple(self, img=None, reward=None, action=None, is_done=None):
+        if(img is not None):
+            self.img_r.append(img)
         if(reward is not None):
             self.reward_r.append(reward)
         if(action is not None):
@@ -271,7 +300,40 @@ class GamePolicy():
             if(self.is_done_r[i]):
                 i += 3
                 
-       
+    def make_record_v2(self):
+        if(len(self.img_r) < 1):
+            return
+        print("img:", len(self.img_r))
+        print("act:", len(self.action_r))
+        print("red:", len(self.reward_r))
+        print("end:", len(self.is_done_r))
+        state0 = None
+        state1 = None
+        for i in range(len(self.action_r)):
+            a = []
+            for j in range(4):
+                a.append(self.img_r[i][j])
+            state0 = torch.tensor(a, dtype=torch.float).squeeze(1)
+            # state0 = (state0 - state0.mean(0)) / (state0.std(0) + 1e-10)
+            if(self.is_done_r[i]):
+                state1 = torch.zeros((4, config.game_scene_size[1], config.game_scene_size[0])).to(config.device)
+            else:
+                a = []
+                # print(i+1)
+                # print("done:", self.is_done_r[i])
+                # print("stack len:",len(self.img_r[i+1]))
+                
+                for j in range(4):
+                    a.append(self.img_r[i + 1][j])
+                state1 = torch.tensor(a, dtype=torch.float).squeeze(1).to(config.device)
+                # state1 = (state1 - state1.mean(0)) / (state1.std(0) + 1e-10)
+            
+            if(len(self.records) >= self.record_limit):
+                self.record_head = (self.record_head + 1) % self.record_limit
+                self.records.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_done_r[i]))
+            else:
+                self.records[self.record_head] = (state0, self.action_r[i], self.reward_r[i], state1, self.is_done_r[i])
+                self.record_head = (self.record_head + 1) % self.record_limit
 
 
     def save_model(self):
@@ -279,9 +341,11 @@ class GamePolicy():
 
     def __load_model(self):
         if(os.path.exists(self.model_load_path)):
+            print("load exist")
             with open(self.model_load_path, "rb") as f:
                 self.dqnnet = torch.load(f, map_location=torch.device(config.device))
         else:
+            print("create new")
             self.dqnnet = DQNNet().to(config.device)
 
 class RecordDataset(Dataset):

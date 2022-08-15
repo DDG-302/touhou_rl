@@ -1,18 +1,19 @@
-from turtle import done
 from Environment import TouhouEnvironment
 from Policy import GamePolicy
 from tqdm import tqdm
 import time
+import config
 
-train_epoch = 10
-start_epoch = 0
+train_epoch = 4
+start_epoch = 21
 
 env = TouhouEnvironment()
 policy = GamePolicy(init_epoch=start_epoch)
 
 
-pbar = tqdm(range(start_epoch + train_epoch))
+pbar = tqdm(range(train_epoch))
 time.sleep(2)
+
 for _ in pbar:
     reward, img = env.reset()
     policy.reset()
@@ -24,14 +25,19 @@ for _ in pbar:
         if(rtn == None):
             # None则不动
             reward, img = env.step(4)
-            policy.save_record_simple(img)
+            if not config.use_policy_v2:
+                policy.save_record_simple(img)
+            time.sleep(0.01)
             # print("get none?")
         else:
             # 非None则根据返回值移动，并保存游戏记录
             action, state = rtn
             reward, img = env.step(action)
-
-            policy.save_record_simple(img, reward, action, env.done)
+            if config.use_policy_v2:
+                pass
+                policy.save_record_simple(None, reward, action, env.done)
+            else:
+                policy.save_record_simple(img, reward, action, env.done)
             # policy.save_record(state, action, reward, img, env.done)
         # print(i)
         # i += 1
@@ -39,6 +45,8 @@ for _ in pbar:
         # end_time = time.perf_counter()
         # print("dleta time=", end_time-start_time)
         if(env.done):
+            if(len(policy.is_done_r) != 0):
+                policy.is_done_r[len(policy.is_done_r)-1] = True
             print("game over...")
             break
     loss = policy.train()

@@ -5,11 +5,17 @@ game_scene_size = (580, 670)
 '''
 (w, h)
 '''
+game_scene_resize_to = (290, 335)
+'''
+(w, h)
+'''
 
 if (torch.cuda.is_available()):
     device = "cuda"
 else:
     device = "cpu"
+
+use_policy_v2 = True
 
 # hyper param
 epsilon_decay = 0.99 # exploration: 0.99 ** epoch
@@ -18,16 +24,18 @@ min_exploration = 0.01
 
 lr = 0.0001
 
-batch_size = 16
+batch_num = 3
+
+batch_size = 4
 
 gamma = 0.85
 
-smooth_l1_beta = 1
+smooth_l1_beta = 1.0
 
 img_stack_num = 4
 
 # reward setting
-alive_reward = 0.5
+alive_reward = 0.4
 
-dead_penalty = -10
+dead_penalty = -16
 

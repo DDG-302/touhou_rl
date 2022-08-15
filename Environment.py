@@ -76,8 +76,16 @@ class TouhouEnvironment:
         img = np.frombuffer(signedIntsArray, dtype=np.uint8)
         img.shape = (height, width, 4)
 
+        # 释放内存
+        # ref: https://www.cnblogs.com/HuaNeedsPills/p/10329763.html
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY) # (HWC)
-        img.shape = (1, height, width) # (C, H, W)
+        img = cv2.resize(img, (config.game_scene_resize_to[0], config.game_scene_resize_to[1]))
+        img.shape = (1, config.game_scene_resize_to[0], config.game_scene_resize_to[1]) # (C, H, W)
+        
+        win32gui.DeleteObject(saveBitMap.GetHandle())
+        saveDC.DeleteDC()
+        mfcDC.DeleteDC()
+        win32gui.ReleaseDC(hWnd, hWndDC)
         return img
 
     def __get_life(self):
