@@ -55,8 +55,7 @@ class DQNNet(nn.Module):
             outpu_shape: (batchsize, 32, H, W)
             in my case, batchisize should be one
         '''
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        x = x.to(device)
+        x = x.to(config.device)
 
         x = self.cnn(x)
         x = x.flatten(1)
@@ -232,15 +231,14 @@ class GamePolicy():
             self.opt.zero_grad()
             loss.backward()
             self.opt.step()
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            avg_loss = avg_loss.to(device)
+            avg_loss = avg_loss.to(config.device)
             avg_loss += loss.detach()
             update_num += 1
 
         with open("train_data/avg_loss.txt", "a") as f:
             f.write(str((avg_loss / update_num).item()) + "\n")
         self.epoch += 1
-        return avg_loss / update_num
+        return avg_loss.item() / update_num
 
     def save_record(self,state0, action, reward, next_img, is_done):
         '''

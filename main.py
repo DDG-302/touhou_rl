@@ -52,9 +52,6 @@ for _ in pbar:
             break
     loss = policy.train()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    loss=loss.to(device)
-
     if(loss is not None):
         pbar.set_description("avgloss= %f"%loss)
     else:
