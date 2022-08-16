@@ -53,7 +53,8 @@ class DQNNet(nn.Module):
 
 class GamePolicy():
     def __init__(self, dqnnet=None, init_epoch = 0) -> None:
-        self.model_save_path = "dqnmodel_" + str(init_epoch) + "_" + str(init_epoch + 1) + ".model"
+        # self.model_save_path = "dqnmodel_" + str(init_epoch) + "_" + str(init_epoch + 1) + ".model"
+        self.model_save_path = "dqnmodel_save.model"
         self.model_load_path = "dqnmodel_0.model"
         self.idx = 0
         '''
@@ -95,7 +96,7 @@ class GamePolicy():
         self.dqnnet.eval()
         # self.record_head = 0
         # self.records = []
-        self.model_save_path = "dqnmodel_" + str(self.init_epoch) + "_" + str(self.epoch + 1) + ".model"
+        # self.model_save_path = "dqnmodel_" + str(self.init_epoch) + "_" + str(self.epoch + 1) + ".model"
         self.explore_rate = config.epsilon_decay ** self.epoch
         self.img_stack = []
 
