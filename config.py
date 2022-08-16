@@ -24,9 +24,9 @@ min_exploration = 0.01
 
 lr = 0.0001
 
-batch_num = 3
+batch_num = 1
 
-batch_size = 4
+batch_size = 16
 
 gamma = 0.85
 
@@ -34,8 +34,10 @@ smooth_l1_beta = 1.0
 
 img_stack_num = 4
 
-# reward setting
-alive_reward = 0.4
+update_frequency = 4
 
-dead_penalty = -16
+# reward setting
+alive_reward = 0.2
+
+dead_penalty = -10
 

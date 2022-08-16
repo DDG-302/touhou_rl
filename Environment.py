@@ -96,6 +96,14 @@ class TouhouEnvironment:
         windll.kernel32.ReadProcessMemory(self.hProcess, LIFE_ADDR, lpBuffer, nSize, lpNumberOfBytesRead)
         return buffer.value
 
+    def is_done(self):
+        if(self.__get_life() < 0):
+            self.done = True
+            return True
+        else:
+            self.done = False
+            return False
+
     def step(self, action):
         '''
         action: 0, 1, 2, 3, 4 -> up, down, left, right, idle
@@ -110,10 +118,12 @@ class TouhouEnvironment:
             raise Exception("game crashed...")
         current_life_count = self.__get_life()    
         is_dead = False
-        if(current_life_count < self.life_count):
+        Move.move([action+1])
+        if(current_life_count < self.life_count and current_life_count > 0):
+            reward = -10
             is_dead = True
-        Move.move([action+1])         
-        if(current_life_count < 0):
+            self.life_count = current_life_count    
+        elif(current_life_count < 0):
             if(current_life_count < 0):
                 self.done = True
                 Move.ReleaseKey(0x2C)
@@ -121,5 +131,6 @@ class TouhouEnvironment:
             self.life_count = current_life_count  
         else:
             reward = config.alive_reward
+        
         return reward, self.__get_img(), is_dead
 

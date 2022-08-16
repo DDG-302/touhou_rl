@@ -1,3 +1,4 @@
+import copy
 import torch
 import torch.nn as nn
 import config
@@ -8,47 +9,34 @@ import torch.optim
 import os
 from torch.utils.data import Dataset, DataLoader
 import time
+import pickle as pkl
 
 class DQNNet(nn.Module):
     def __init__(self):
         super().__init__()
         # input shape: (BCHW)
         self.cnn = nn.Sequential(
-            nn.Conv2d(int(config.img_stack_num), 16, 3, 1, 1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2, 0),
-
-            nn.Conv2d(16, 32, 3, 1, 1),
+            nn.Conv2d(int(config.img_stack_num), 32, 8, 4),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2, 2, 0),
 
-            nn.Conv2d(32, 64, 3, 1, 1),
+            nn.Conv2d(32, 64, 4, 2),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2, 0),
 
-            nn.Conv2d(64, 128, 3, 1, 1),
-            nn.BatchNorm2d(128),
+            nn.Conv2d(64, 64, 3, 1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2, 0),
 
-            nn.Conv2d(128, 256, 3, 1, 1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
 
         )
 
         self.fc = nn.Sequential(
             # nn.Linear(256 * int(config.game_scene_resize_to[1]/8) * int(config.game_scene_resize_to[0]/8), 128),
-            nn.Linear(92160, 128),
+            nn.Linear(15232, 512),
             nn.ReLU(),
-            nn.Linear(128, 32),
-            nn.ReLU(),
-            nn.Linear(32, 5),# 上 下 左 右 不动
-            # nn.ReLU(),
-            # nn.Linear(16, 5) # 上 下 左 右 不动
+            nn.Linear(512, 5),# 上 下 左 右 不动
         )
 
     def forward(self, x):
@@ -65,8 +53,8 @@ class DQNNet(nn.Module):
 
 class GamePolicy():
     def __init__(self, dqnnet=None, init_epoch = 0) -> None:
-        self.model_save_path = "dqnmodel_20_25.model"
-        self.model_load_path = "dqnmodel_10_20.model"
+        self.model_save_path = "dqnmodel_" + str(init_epoch) + "_" + str(init_epoch + 1) + ".model"
+        self.model_load_path = "dqnmodel_0.model"
         self.idx = 0
         '''
         idx: 指向img_stack下一个写地址
@@ -77,18 +65,24 @@ class GamePolicy():
         else:
             self.__load_model()
 
+        self.target_dqnnet = copy.deepcopy(self.dqnnet)
 
         self.opt = torch.optim.Adam(self.dqnnet.parameters(), lr=config.lr, weight_decay=0.01)
-        
+        self.init_epoch = init_epoch
         self.epoch = init_epoch
         self.explore_rate = max(config.epsilon_decay ** self.epoch, config.min_exploration)
         
         self.record_limit = 512
-        self.record_head = 0
-        '''
-        record_head: 指向下一个写地址
-        '''
-        self.records = [] # (statei, ri, ai, statei+1, is_dead)
+        self.records_file = "records.pkl"
+        if(os.path.exists(self.records_file)):
+            with open(self.records_file, "rb") as f:
+                self.records, self.record_head = pkl.load(f)
+        else:
+            self.record_head = 0
+            '''
+            record_head: 指向下一个写地址
+            '''
+            self.records = [] # (statei, ri, ai, statei+1, is_dead)
 
         self.img_r = []
         self.reward_r = []
@@ -101,6 +95,7 @@ class GamePolicy():
         self.dqnnet.eval()
         # self.record_head = 0
         # self.records = []
+        self.model_save_path = "dqnmodel_" + str(self.init_epoch) + "_" + str(self.epoch + 1) + ".model"
         self.explore_rate = config.epsilon_decay ** self.epoch
         self.img_stack = []
 
@@ -176,12 +171,14 @@ class GamePolicy():
             self.make_record()
         
         if(len(self.records) == 0):
+            time.sleep(1)
             return None
         # 1. 从records中取数据构建batch
         if(len(self.records) > config.batch_num * config.batch_size):
             mini_records = random.sample(self.records, k=config.batch_num * config.batch_size)
         else:
-            mini_batch = self.records
+            mini_records = self.records
+
         dataset = RecordDataset(mini_records)
         dataloader = DataLoader(
             dataset, config.batch_size,
@@ -198,7 +195,7 @@ class GamePolicy():
             state1 = data[2]
             is_dead = data[3]
             with torch.no_grad():
-                v1 = self.dqnnet(state1.to(torch.float32)).detach()
+                v1 = self.target_dqnnet(state1.to(torch.float32)).detach()
             self.dqnnet.train()
             v0 = self.dqnnet(state0.to(torch.float32))
             
@@ -241,7 +238,12 @@ class GamePolicy():
             with open("train_data/avg_loss.txt", "a") as f:
                 f.write(str((avg_loss / update_num).item()) + "\n")
         self.epoch += 1
+        if(self.epoch % config.update_frequency == 0):
+            self.update_target_dqn()
         return avg_loss.item() / update_num
+    
+    def update_target_dqn(self):
+        self.target_dqnnet = copy.deepcopy(self.dqnnet)
 
     def save_record(self,state0, action, reward, next_img, is_dead):
         '''
@@ -306,11 +308,13 @@ class GamePolicy():
             if(self.is_dead_r[i]):
                 i += 3
         
+        
 
     def make_record_v2(self):
         if(len(self.img_r) < 1):
             return
-        # print("img:", len(self.img_r))
+        print("img:", len(self.img_r))
+        print("last_reward:", self.reward_r[len(self.reward_r) - 1])
         # print("act:", len(self.action_r))
         # print("red:", len(self.reward_r))
         # print("end:", len(self.is_dead_r))
@@ -342,6 +346,10 @@ class GamePolicy():
                 self.records[self.record_head] = (state0, self.action_r[i], self.reward_r[i], state1, self.is_dead_r[i])
                 self.record_head = (self.record_head + 1) % self.record_limit
         print("records_buffer:", len(self.records))
+        # with open("train_data/img.txt", "a") as f:
+        #     f.write(str(self.epoch+1) + ":" + str(len(self.img_r)) + "\n")
+        # with open(self.records_file, "wb") as f:
+        #     pkl.dump((self.records, self.record_head), f)
 
     def save_model(self):
         torch.save(self.dqnnet, self.model_save_path)
