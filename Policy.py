@@ -52,15 +52,16 @@ class DQNNet(nn.Module):
         return x
 
 class GamePolicy():
-    def __init__(self, dqnnet=None, init_epoch = 0) -> None:
+    def __init__(self, dqnnet=None, init_epoch = 0, epsilon_offset = None) -> None:
         # self.model_save_path = "dqnmodel_" + str(init_epoch) + "_" + str(init_epoch + 1) + ".model"
-        self.model_save_path = "dqnmodel_save.model"
-        self.model_load_path = "dqnmodel_0.model"
+        self.model_save_path = "dqnmodel_560_760.model"
+        self.model_load_path = "good_overfit_dqnmodel_360_560.model"
         self.idx = 0
         '''
         idx: 指向img_stack下一个写地址
         '''
         self.img_stack = []
+        self.debug_last_img_stack = []
         if(dqnnet is not None):
             self.dqnnet = dqnnet
         else:
@@ -70,10 +71,15 @@ class GamePolicy():
 
         self.opt = torch.optim.Adam(self.dqnnet.parameters(), lr=config.lr, weight_decay=0.01)
         self.init_epoch = init_epoch
+        
+        if(epsilon_offset is not None):
+            self.epsilon_epoch = epsilon_offset
+        else:
+            self.epsilon_epoch = init_epoch
         self.epoch = init_epoch
         self.explore_rate = max(config.epsilon_decay ** self.epoch, config.min_exploration)
         
-        self.record_limit = 512
+        self.record_limit = 2048
         self.records_file = "records.pkl"
         if(os.path.exists(self.records_file)):
             with open(self.records_file, "rb") as f:
@@ -97,7 +103,7 @@ class GamePolicy():
         # self.record_head = 0
         # self.records = []
         # self.model_save_path = "dqnmodel_" + str(self.init_epoch) + "_" + str(self.epoch + 1) + ".model"
-        self.explore_rate = config.epsilon_decay ** self.epoch
+        self.explore_rate = config.epsilon_decay ** self.epsilon_epoch
         self.img_stack = []
 
         self.img_r = []
@@ -140,8 +146,8 @@ class GamePolicy():
         # state = (state - state.mean(1)) / (state.std(1) + 1e-10)
         # print(state)
 
-        if(rand < self.explore_rate):
-        # if(False):
+        # if(rand < self.explore_rate):
+        if(False):
             # 随机探索， 不需要经过nn运算
             # print("random choice")
             action = random.randint(0, 4)
@@ -159,13 +165,17 @@ class GamePolicy():
             for i in self.img_stack:
                 record_img.append(i)
             self.img_r.append(record_img)
+            self.debug_last_img_stack = self.img_stack
             self.img_stack = []  # 等待下一次img_stack
+            
             self.idx = 0
         
             
         return action, state
 
     def train(self):
+        if(len(self.img_r) < 4):
+            return None
         if(config.use_policy_v2):
             self.make_record_v2()
         else:
@@ -239,6 +249,7 @@ class GamePolicy():
             with open("train_data/avg_loss.txt", "a") as f:
                 f.write(str((avg_loss / update_num).item()) + "\n")
         self.epoch += 1
+        self.epsilon_epoch += 1
         if(self.epoch % config.update_frequency == 0):
             self.update_target_dqn()
         return avg_loss.item() / update_num
@@ -315,7 +326,7 @@ class GamePolicy():
         if(len(self.img_r) < 1):
             return
         print("img:", len(self.img_r))
-        print("last_reward:", self.reward_r[len(self.reward_r) - 1])
+        nr_num = 0
         # print("act:", len(self.action_r))
         # print("red:", len(self.reward_r))
         # print("end:", len(self.is_dead_r))
@@ -323,11 +334,15 @@ class GamePolicy():
         state1 = None
         for i in range(len(self.action_r)):
             a = []
+            if(self.reward_r[i] < 0):
+                nr_num += 1
             for j in range(4):
                 a.append(self.img_r[i][j])
             state0 = torch.tensor(a, dtype=torch.float).squeeze(1)
             # state0 = (state0 - state0.mean(0)) / (state0.std(0) + 1e-10)
             if(self.is_dead_r[i]):
+                print("is_dead_r[",i,"]=",self.is_dead_r[i], sep="")
+                print("reward:", self.reward_r[i])
                 state1 = torch.zeros((4, config.game_scene_resize_to[1], config.game_scene_resize_to[0])).to(config.device)
             else:
                 a = []
@@ -351,7 +366,11 @@ class GamePolicy():
         #     f.write(str(self.epoch+1) + ":" + str(len(self.img_r)) + "\n")
         # with open(self.records_file, "wb") as f:
         #     pkl.dump((self.records, self.record_head), f)
-
+        print("neg_reward_num:", nr_num)
+        if(nr_num != 2):
+            print("reward error!!!!!!!")
+            exit()
+    
     def save_model(self):
         torch.save(self.dqnnet, self.model_save_path)
 

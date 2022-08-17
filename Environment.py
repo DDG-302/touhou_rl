@@ -33,14 +33,15 @@ class TouhouEnvironment:
         '''
         return: reward, init_img
         '''
-        self.life_count = self.__get_life()
-        self.done = False
+        
 
         # todo: 还需插入重开指令
         Move.click_with_scane_code(0x48)
         Move.click_with_scane_code(0x2c)
 
         sleep(2) # 等待重开
+        self.life_count = self.__get_life()
+        self.done = False
 
         Move.PressKey(0x2c)
 
@@ -104,9 +105,10 @@ class TouhouEnvironment:
             self.done = False
             return False
 
-    def step(self, action):
+    def step(self, action, no_action = False):
         '''
         action: 0, 1, 2, 3, 4 -> up, down, left, right, idle
+        no_action: True -> always idle and return (0, next_img, False); False -> return (reward, next_img, is_dead)
         return: (reward, next_img, is_dead)
         - next_img: this is not the state, 
                     you should feed this next_img to the POLICY,
@@ -116,13 +118,17 @@ class TouhouEnvironment:
         win_handle = win32gui.FindWindow(0, u"搶曽抧楈揳丂乣 Subterranean Animism. ver 1.00a")
         if(win_handle == 0):
             raise Exception("game crashed...")
+        if(no_action):
+            sleep(0.02)
+            return (0, self.__get_img(), False)
         current_life_count = self.__get_life()    
         is_dead = False
         Move.move([action+1])
-        if(current_life_count < self.life_count and current_life_count > 0):
-            reward = -10
+
+        if(current_life_count < self.life_count and current_life_count >= 0):
+            reward = config.dead_penalty
             is_dead = True
-            self.life_count = current_life_count    
+            self.life_count = current_life_count   
         elif(current_life_count < 0):
             if(current_life_count < 0):
                 self.done = True
