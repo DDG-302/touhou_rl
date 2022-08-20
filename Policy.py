@@ -53,9 +53,8 @@ class DQNNet(nn.Module):
 
 class GamePolicy():
     def __init__(self, dqnnet=None, init_epoch = 0, epsilon_offset = None) -> None:
-        # self.model_save_path = "dqnmodel_" + str(init_epoch) + "_" + str(init_epoch + 1) + ".model"
-        self.model_save_path = "dqnmodel_560_760.model"
-        self.model_load_path = "good_overfit_dqnmodel_360_560.model"
+        self.model_save_path = "newdqnmodel_0_150.model"
+        self.model_load_path = ""
         self.idx = 0
         '''
         idx: 指向img_stack下一个写地址
@@ -90,6 +89,7 @@ class GamePolicy():
             record_head: 指向下一个写地址
             '''
             self.records = [] # (statei, ri, ai, statei+1, is_dead)
+            
 
         self.img_r = []
         self.reward_r = []
@@ -142,12 +142,15 @@ class GamePolicy():
             while(j != self.idx):
                 a.append(self.img_stack[j])
                 j = (j + 1) % len(self.img_stack)
-            state = torch.tensor(a, dtype=torch.float).transpose(0, 1).to(config.device)
+            state = a
+            # state = torch.tensor(a, dtype=torch.float).transpose(0, 1).to(config.device)
         # state = (state - state.mean(1)) / (state.std(1) + 1e-10)
         # print(state)
 
-        # if(rand < self.explore_rate):
-        if(False):
+        if(len(self.records) < self.record_limit and rand < 0.5):
+            action = random.randint(0, 4)
+        elif(rand < self.explore_rate):
+        # if(False):
             # 随机探索， 不需要经过nn运算
             # print("random choice")
             action = random.randint(0, 4)
@@ -181,7 +184,7 @@ class GamePolicy():
         else:
             self.make_record()
         
-        if(len(self.records) == 0):
+        if(len(self.records) < 1024):
             time.sleep(1)
             return None
         # 1. 从records中取数据构建batch
@@ -216,28 +219,43 @@ class GamePolicy():
 
             for i in range(len(action)):
                 if(is_dead[i]):
+                    # smooth l1
+                    # if(loss is None):
+                    #     if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
+                    #         loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                    #     else:
+                    #         loss = abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                    # else:
+                    #     if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
+                    #         loss += 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                    #     else:
+                    #         loss += abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+
+                    # l2
                     if(loss is None):
-                        if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
-                            loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
-                        else:
-                            loss = abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                        loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2
                     else:
-                        if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
-                            loss += 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
-                        else:
-                            loss += abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                        loss += 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
                         
                 else:
+                    # smooth l1
+                    # if(loss is None):
+                    #     if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                    #         loss = 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                    #     else:
+                    #         loss = abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                    # else:
+                    #     if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                    #         loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                    #     else:
+                    #         loss += abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                    
+                    # l2
                     if(loss is None):
-                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
-                            loss = 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
-                        else:
-                            loss = abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                        loss = 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2
                     else:
-                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
-                            loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
-                        else:
-                            loss += abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                        loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2
+                       
             loss /= len(action)
             self.opt.zero_grad()
             loss.backward()
@@ -367,7 +385,7 @@ class GamePolicy():
         # with open(self.records_file, "wb") as f:
         #     pkl.dump((self.records, self.record_head), f)
         print("neg_reward_num:", nr_num)
-        if(nr_num != 2):
+        if(nr_num != 3):
             print("reward error!!!!!!!")
             exit()
     

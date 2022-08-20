@@ -5,15 +5,15 @@ import time
 import config
 import torch
 
-train_epoch = 200
-start_epoch = 560
+train_epoch = 850
+start_epoch = 0
 env = TouhouEnvironment()
-policy = GamePolicy(init_epoch=start_epoch, epsilon_offset=80)
+policy = GamePolicy(init_epoch=start_epoch, epsilon_offset=39)
 
 
 pbar = tqdm(range(train_epoch))
 time.sleep(2)
-
+trained_epochs = 0
 for _ in pbar:
     reward, img, is_dead = env.reset()
     policy.reset()
@@ -22,8 +22,10 @@ for _ in pbar:
     while(True):
         if(len(policy.img_r) >= 500):
             break
-        # start_time = time.perf_counter()
+        start_time = time.perf_counter()
         if(env.is_done()):
+            import Move
+            Move.ReleaseKey(0x2C)
             if(len(policy.is_dead_r) != 0):
                 policy.is_dead_r[len(policy.is_dead_r)-1] = True
                 policy.reward_r[len(policy.reward_r)-1] = config.dead_penalty
@@ -56,8 +58,8 @@ for _ in pbar:
         # print(i)
         # i += 1
         
-        # end_time = time.perf_counter()
-        # print("dleta time=", end_time-start_time)
+        end_time = time.perf_counter()
+        print("dleta time=", end_time-start_time)
         if(env.done):
             if(len(policy.is_dead_r) != 0):
                 policy.is_dead_r[len(policy.is_dead_r)-1] = True
@@ -70,15 +72,21 @@ for _ in pbar:
     #     cv2.imshow("1",i)
     #     cv2.waitKey()
     # exit()
+    if(len(policy.img_r) >= 500):
+        print("maybe good_enough")
+        break
+
     # loss = policy.train()
 
     # if(loss is not None):
-    #     pbar.set_description("avgloss= %f"%loss)
+    #     pbar.set_description("avgloss= %f,trained_epochs=%d"%(loss,trained_epochs))
+    #     trained_epochs += 1
     # else:
-    #     pbar.set_description("avgloss= None")
+    #     pbar.set_description("avgloss= None,trained_epochs=%d"%trained_epochs)
     # policy.save_model()
-    # if(len(policy.img_r) >= 500):
-    #     print("maybe better_enough")
+    # print(policy.epoch)
+    # if(trained_epochs >= 150):
     #     break
+    
         
 

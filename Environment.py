@@ -37,6 +37,7 @@ class TouhouEnvironment:
 
         # todo: 还需插入重开指令
         Move.click_with_scane_code(0x48)
+        sleep(0.02)
         Move.click_with_scane_code(0x2c)
 
         sleep(2) # 等待重开
