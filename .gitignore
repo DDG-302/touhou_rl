@@ -8,3 +8,4 @@ __pycache__
 1.jpg
 train_data
 *.pkl
+.idea
