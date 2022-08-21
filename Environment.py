@@ -129,15 +129,15 @@ class TouhouEnvironment:
         if(current_life_count < self.life_count and current_life_count >= 0):
             reward = config.dead_penalty
             is_dead = True
-            self.life_count = current_life_count   
         elif(current_life_count < 0):
             if(current_life_count < 0):
                 self.done = True
                 Move.ReleaseKey(0x2C)
             reward = config.dead_penalty
-            self.life_count = current_life_count  
+            is_dead = True
         else:
             reward = config.alive_reward
-        
+
+        self.life_count = current_life_count
         return reward, self.__get_img(), is_dead
 

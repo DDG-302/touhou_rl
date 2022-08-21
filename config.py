@@ -15,9 +15,9 @@ if (torch.cuda.is_available()):
 else:
     device = "cpu"
 
-use_policy_v2 = True
-
 # hyper param
+replay_buffer_limit = 20000
+
 epsilon_decay = 0.99 # exploration: 0.99 ** epoch
 
 min_exploration = 0.01 
@@ -35,6 +35,8 @@ smooth_l1_beta = 1.0
 img_stack_num = 4
 
 update_frequency = 2
+
+std_init = 0.5 # default value in the paper
 
 # reward setting
 alive_reward = 0.2
