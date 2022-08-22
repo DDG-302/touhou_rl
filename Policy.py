@@ -15,6 +15,8 @@ import time
 import pickle as pkl
 import math
 
+random.seed(config.random_seed)
+
 class DQNNet(nn.Module):
     def __init__(self, use_noisy_net):
         super(DQNNet, self).__init__()
@@ -63,7 +65,7 @@ class DQNNet(nn.Module):
             self.estimate = nn.Sequential(
                 nn.Linear(512, 256),
                 nn.ReLU(),
-                nn.Linear(512, 1)
+                nn.Linear(256, 1)
             )
 
             self.advantages = nn.Sequential(
@@ -82,7 +84,7 @@ class DQNNet(nn.Module):
         x = self.fc(x)
         e = self.estimate(x)
         a = self.advantages(x)
-        x = a + e
+        x = a + e - a.mean(dim=-1, keepdim=True)
         return x
 
     def reset_noisy(self):
@@ -143,7 +145,7 @@ class NoisyLayer(nn.Module):
 
 class GamePolicy_train():
     def __init__(self, use_noisy_net:bool, dqnnet=None, init_epoch = 0, epsilon_offset = None) -> None:
-        self.model_save_path = "0821_dqnmodel_0_150.model"
+        self.model_save_path = "save_model.model"
         self.model_load_path = ""
 
         self.use_noisy_net = use_noisy_net
@@ -167,8 +169,10 @@ class GamePolicy_train():
             self.epsilon_epoch = epsilon_offset
         else:
             self.epsilon_epoch = init_epoch
-        self.epoch = init_epoch
-        self.explore_rate = max(config.epsilon_decay ** self.epoch, config.min_exploration)
+        self.epoch = 0
+        self.explore_rate = max(
+                max(config.epsilon_decay ** self.epsilon_epoch, 1 - (1 - config.min_exploration) / config.epsilon_decay_linear_epochs * self.epsilon_epoch),
+                config.min_exploration)
         
         self.replay_buffer_file = "records.pkl"
 
@@ -194,7 +198,11 @@ class GamePolicy_train():
         # self.dqnnet.eval()
         if(self.use_noisy_net):
             self.dqnnet.reset_noisy()
-        self.explore_rate = config.epsilon_decay ** self.epsilon_epoch
+            self.target_dqnnet.reset_noisy()
+        else:
+            self.explore_rate = max(
+                max(config.epsilon_decay ** self.epsilon_epoch, 1 - (1 - config.min_exploration) / config.epsilon_decay_linear_epochs * self.epsilon_epoch),
+                config.min_exploration)
         self.img_stack = []
 
         self.img_r = []
@@ -270,7 +278,6 @@ class GamePolicy_train():
             mini_records = random.sample(self.replay_buffer, k=config.batch_num * config.batch_size)
         else:
             mini_records = self.replay_buffer
-
         dataset = ReplayDataset(mini_records)
         dataloader = DataLoader(
             dataset, config.batch_size,
@@ -281,11 +288,11 @@ class GamePolicy_train():
         avg_loss = torch.tensor(0.)
         
         update_num = 0
-        for data, reward in dataloader:
-            state0 = data[0]
-            action = data[1]
-            state1 = data[2]
-            is_dead = data[3]
+        for state0, action, state1, is_dead, reward in dataloader:
+            # state0 = data[0]
+            # action = data[1]
+            # state1 = data[2]
+            # is_dead = data[3]
             with torch.no_grad():
                 v1 = self.target_dqnnet(state1.to(torch.float32)).detach()
             self.dqnnet.train()
@@ -298,41 +305,41 @@ class GamePolicy_train():
             for i in range(len(action)):
                 if(is_dead[i]):
                     # smooth l1
-                    # if(loss is None):
-                    #     if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
-                    #         loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
-                    #     else:
-                    #         loss = abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
-                    # else:
-                    #     if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
-                    #         loss += 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
-                    #     else:
-                    #         loss += abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                    if(loss is None):
+                        if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                        else:
+                            loss = abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                    else:
+                        if(abs(v0[i][action[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss += 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                        else:
+                            loss += abs(v0[i][action[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
 
                     # l2
-                    if(loss is None):
-                        loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2
-                    else:
-                        loss += 0.5 * (v0[i][action[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                    # if(loss is None):
+                    #     loss = 0.5 * (v0[i][action[i]] - reward[i]) ** 2
+                    # else:
+                    #     loss += 0.5 * (v0[i][action[i]] - reward[i]) ** 2 
                         
                 else:
                     # smooth l1
-                    # if(loss is None):
-                    #     if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
-                    #         loss = 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
-                    #     else:
-                    #         loss = abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
-                    # else:
-                    #     if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
-                    #         loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
-                    #     else:
-                    #         loss += abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                    if(loss is None):
+                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss = 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                        else:
+                            loss = abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
+                    else:
+                        if(abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) < config.smooth_l1_beta):
+                            loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2 / config.smooth_l1_beta
+                        else:
+                            loss += abs(v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) - 0.5 * config.smooth_l1_beta
                     
                     # l2
-                    if(loss is None):
-                        loss = 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2
-                    else:
-                        loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2
+                    # if(loss is None):
+                    #     loss = 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2
+                    # else:
+                    #     loss += 0.5 * (v0[i][action[i]] - config.gamma * v1[i][Q1_argmax[i]] - reward[i]) ** 2
                        
             loss /= len(action)
             self.opt.zero_grad()
@@ -344,14 +351,21 @@ class GamePolicy_train():
         if(os.path.exists("train_data")): 
             with open("train_data/avg_loss.txt", "a") as f:
                 f.write(str((avg_loss / update_num).item()) + "\n")
+        if(os.path.exists("train_data/img.txt")):
+            with open("train_data/img.txt", "a") as f:
+                f.write(str(self.epsilon_epoch+1) + ":" + str(len(self.img_r)) + "\n")
         self.epoch += 1
         self.epsilon_epoch += 1
+        if(self.epoch % config.save_replay_per_epoch == 0 and self.epoch != 0):
+            with open(self.replay_buffer_file, "wb") as f:
+                pkl.dump((self.replay_buffer, self.replay_head), f)
         if(self.epoch % config.update_frequency == 0):
             self.update_target_dqn()
         return avg_loss.item() / update_num
     
     def update_target_dqn(self):
         self.target_dqnnet = copy.deepcopy(self.dqnnet)
+    
 
     
     def save_replay_simple(self, img_stack=None, reward=None, action=None, is_dead=None):
@@ -386,31 +400,39 @@ class GamePolicy_train():
         state1 = None
         for i in range(len(self.action_r)):
             a = []
+            if(self.reward_r[i] > 0 and self.is_dead_r[i]):
+                print(self.reward_r[i])
+                print(self.is_dead_r[i])
+                raise Exception("miss但奖励是正数")
+            if(self.reward_r[i] < 0 and not self.is_dead_r[i]):
+                raise Exception("存活但奖励是负数")
             if(self.reward_r[i] < 0):
                 nr_num += 1
             for j in range(4):
                 a.append(self.img_r[i][j])
-            state0 = torch.tensor(a, dtype=torch.float).squeeze(1)
+            state0 = a
+            # state0 = torch.tensor(a, dtype=torch.float).squeeze(1)
             # state0 = (state0 - state0.mean(0)) / (state0.std(0) + 1e-10)
             if(self.is_dead_r[i]):
-                state1 = torch.zeros((4, config.game_scene_resize_to[1], config.game_scene_resize_to[0])).to(config.device)
+                state1 = np.zeros((4, config.game_scene_resize_to[1], config.game_scene_resize_to[0]))
+                # state1 = torch.zeros((4, config.game_scene_resize_to[1], config.game_scene_resize_to[0])).to(config.device)
             else:
                 a = []
                 
                 for j in range(4):
                     a.append(self.img_r[i + 1][j])
-                state1 = torch.tensor(a, dtype=torch.float).squeeze(1).to(config.device)
+                state1 = a
+                # state1 = torch.tensor(a, dtype=torch.float).squeeze(1).to(config.device)
                 # state1 = (state1 - state1.mean(0)) / (state1.std(0) + 1e-10)
             
             if(len(self.replay_buffer) < config.replay_buffer_limit):
-                self.replay_head = (self.replay_head + 1) % config.replay_buffer_limit
                 self.replay_buffer.append((state0, self.action_r[i], self.reward_r[i], state1, self.is_dead_r[i]))
+                self.replay_head = len(self.replay_buffer) % config.replay_buffer_limit
             else:
                 self.replay_buffer[self.replay_head] = (state0, self.action_r[i], self.reward_r[i], state1, self.is_dead_r[i])
                 self.replay_head = (self.replay_head + 1) % config.replay_buffer_limit
         print("replay_buffer:", len(self.replay_buffer))
-        # with open("train_data/img.txt", "a") as f:
-        #     f.write(str(self.epoch+1) + ":" + str(len(self.img_r)) + "\n")
+        
         # with open(self.replay_buffer_file, "wb") as f:
         #     pkl.dump((self.replay_buffer, self.replay_head), f)
         print("neg_reward_num:", nr_num)
@@ -449,7 +471,9 @@ class GamePolicy_eval():
             self.img_stack.append(img)
             return None
         else:
-            action = self.model(self.img_stack).flatten().argmax().item()
+            with torch.no_grad():
+                state = torch.tensor(self.img_stack, dtype=torch.float).transpose(0, 1).to(config.device)
+                action = self.model(state).flatten().argmax().item()
             self.img_stack = []
             return action
             
@@ -466,9 +490,13 @@ class ReplayDataset(Dataset):
         self.record = record
 
     def __getitem__(self, index):
-        data = (self.record[index][0], self.record[index][1], self.record[index][3], self.record[index][4])
-        reward = self.record[index][2]
-        return data, reward
+        data = (torch.tensor(self.record[index][0], dtype=torch.float).squeeze(1).to(config.device),
+        self.record[index][1], 
+        torch.tensor(self.record[index][3], dtype=torch.float).squeeze(1).to(config.device), 
+        self.record[index][4],
+        self.record[index][2])
+
+        return data
 
     def __len__(self):
         return len(self.record)

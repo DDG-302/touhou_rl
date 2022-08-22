@@ -8,7 +8,7 @@ import torch
 train_epoch = 150
 start_epoch = 0
 env = TouhouEnvironment()
-policy = GamePolicy_train(True, init_epoch=start_epoch, epsilon_offset=39)
+policy = GamePolicy_train(True, init_epoch=start_epoch)
 
 
 pbar = tqdm(range(train_epoch))

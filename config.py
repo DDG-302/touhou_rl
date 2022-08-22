@@ -1,3 +1,4 @@
+import time
 import torch
 # basic info
 
@@ -15,26 +16,33 @@ if (torch.cuda.is_available()):
 else:
     device = "cpu"
 
-# hyper param
-replay_buffer_limit = 20000
+save_replay_per_epoch = 3000
 
-epsilon_decay = 0.99 # exploration: 0.99 ** epoch
+random_seed = int(time.time())
+
+# hyper param
+replay_buffer_limit = 10000
+
+epsilon_decay = 0.995 # exploration: epsilon_decay ** epoch
+
+epsilon_decay_linear_epochs = 400 # epoch0 -> exploration = 1; epoch400 -> exploration = 0.01
+# exploration: 1 - (1 - min_exploration) / epsilon_decay_linear_epochs * epoch
 
 min_exploration = 0.01 
 
-lr = 0.0001
+lr = 0.00001
 
 batch_num = 1
 
 batch_size = 8
 
-gamma = 0.75
+gamma = 0.85
 
 smooth_l1_beta = 1.0
 
 img_stack_num = 4
 
-update_frequency = 2
+update_frequency = 4
 
 std_init = 0.5 # default value in the paper
 

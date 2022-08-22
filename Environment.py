@@ -31,7 +31,7 @@ class TouhouEnvironment:
 
     def reset(self):
         '''
-        return: reward, init_img
+        return: reward, init_img, is_dead
         '''
         
 
