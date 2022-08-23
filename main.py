@@ -5,10 +5,10 @@ import time
 import config
 import torch
 
-train_epoch = 200
-start_epoch = 501
+train_epoch = 500
+start_epoch = 0
 env = TouhouEnvironment()
-policy = GamePolicy_train(use_noisy_net=False, init_epoch=start_epoch, epsilon_offset=130)
+policy = GamePolicy_train(use_noisy_net=False, init_epoch=start_epoch, epsilon_offset=100000)
 
 pbar = tqdm(range(train_epoch))
 time.sleep(2)
@@ -19,12 +19,12 @@ for _ in pbar:
     i = 0
     
     while(True):
-        if(len(policy.img_r) >= 500):
-            print("too much img...")
-            policy.save_checkpoint(str(policy.epsilon_epoch) + "check_point_model.model",
-                "check_point_replay_buffer")
-            break
-        # start_time = time.perf_counter()
+        # if(len(policy.img_r) >= 500):
+        #     print("too much img...")
+        #     policy.save_checkpoint(str(policy.epsilon_epoch) + "check_point_model.model",
+        #         "check_point_replay_buffer")
+        #     break
+        start_time = time.perf_counter()
         if(env.is_done()):
             import Move
             Move.ReleaseKey(0x2C)
@@ -51,14 +51,23 @@ for _ in pbar:
         rtn = policy.sample_action(img)
         if(rtn == None):
             # None则不动
-            reward, img, is_dead = env.step(4, True)
+            try:
+                reward, img, is_dead = env.step(4, True)
+            except:
+                pass
+                # policy.save_checkpoint(str(policy.epsilon_epoch) + "check_point_model.model",
+                # "check_point_replay_buffer.pkl")
                 
             # time.sleep(0.01)
             # print("get none?")
         else:
             # 非None则根据返回值移动，并保存游戏记录
             action, state = rtn
-            reward, img, is_dead = env.step(action)
+            try:
+                reward, img, is_dead = env.step(action)
+            except:
+                policy.save_checkpoint(str(policy.epsilon_epoch) + "_check_point_model.model",
+                "check_point_replay_buffer.pkl")
             # if(len(policy.is_dead_r) > 0 and is_dead):
             #     policy.is_dead_r[len(policy.is_dead_r)-1] = is_dead
             #     policy.reward_r[len(policy.reward_r)-1] = config.dead_penalty
@@ -70,19 +79,19 @@ for _ in pbar:
             else:
                 policy.reward_r[len(policy.reward_r) - 1] = reward
                 policy.is_dead_r[len(policy.is_dead_r) - 1] = is_dead
-                # import cv2
-                # for i in range(len(policy.img_r[len(policy.img_r)-1])):
-                #     policy.img_r[len(policy.img_r)-1][i].shape = (config.game_scene_resize_to[1], config.game_scene_resize_to[0], 1)
-                #     cv2.imshow("dead", policy.img_r[len(policy.img_r)-1][i])
-                #     cv2.waitKey()
-                # for i in range(4):
-                #     state[i].shape = (config.game_scene_resize_to[1], config.game_scene_resize_to[0], 1)
-                #     cv2.imshow("1", state[i])
-                #     cv2.waitKey()
+            # import cv2
+            # for i in range(len(policy.img_r[len(policy.img_r)-1])):
+            #     policy.img_r[len(policy.img_r)-1][i].shape = (config.game_scene_resize_to[1], config.game_scene_resize_to[0], 1)
+            #     cv2.imshow("dead", policy.img_r[len(policy.img_r)-1][i])
+            #     cv2.waitKey()
+            # for i in range(4):
+            #     state[i].shape = (config.game_scene_resize_to[1], config.game_scene_resize_to[0], 1)
+            #     cv2.imshow("1", state[i])
+            #     cv2.waitKey()
 
         
-        # end_time = time.perf_counter()
-        # print("dleta time=", end_time-start_time)
+        end_time = time.perf_counter()
+        print("dleta time=", end_time-start_time)
         if(env.done):
 
             if(len(policy.is_dead_r) != 0):
@@ -117,11 +126,12 @@ for _ in pbar:
     #                 policy.img_r[j][i].shape = (config.game_scene_resize_to[1], config.game_scene_resize_to[0], 1)
     #                 cv2.imshow("all r" + str(j) + "_" + str(i), policy.img_r[j][i])
     #                 cv2.waitKey()
-    if(len(policy.img_r) >= 500):
-        policy.save_checkpoint(str(policy.epsilon_epoch) + "check_point_model.model",
-                "check_point_replay_buffer")
-        print("too much img")
-        break
+
+    # if(len(policy.img_r) >= 500):
+    #     policy.save_checkpoint(str(policy.epsilon_epoch) + "check_point_model.model",
+    #             "check_point_replay_buffer")
+    #     print("too much img")
+    #     break
 
     loss = policy.train()
 

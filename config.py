@@ -23,9 +23,9 @@ random_seed = int(time.time())
 # hyper param
 replay_buffer_limit = 10000
 
-epsilon_decay = 0.995 # exploration: epsilon_decay ** epoch
+epsilon_decay = 0.996 # exploration: epsilon_decay ** epoch
 
-epsilon_decay_linear_epochs = 400 # epoch0 -> exploration = 1; epoch400 -> exploration = 0.01
+epsilon_decay_linear_epochs = 500 # epoch0 -> exploration = 1; epoch400 -> exploration = 0.01
 # exploration: 1 - (1 - min_exploration) / epsilon_decay_linear_epochs * epoch
 
 min_exploration = 0.01 

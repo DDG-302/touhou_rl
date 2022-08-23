@@ -24,32 +24,29 @@ class DQNNet(nn.Module):
 
         self.use_nosiy_net = use_noisy_net
         self.cnn = nn.Sequential(
-            nn.Conv2d(int(config.img_stack_num), 32, 3, 1), # (290, 335) -> (288, 333)
+            nn.Conv2d(int(config.img_stack_num), 32, 2, 2), # (290, 335) -> (145, 167)
             nn.BatchNorm2d(32),
             nn.ReLU(),
 
-            nn.Conv2d(32, 64, 3, 2), # (288, 333) -> (143, 166)
+            nn.Conv2d(32, 64, 3, 1), # (145, 167) -> (143, 165)
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Conv2d(64, 64, 3, 2), # (143, 166) -> (71, 82)
+            nn.Conv2d(64, 64, 3, 2), # (143, 165) -> (71, 82)
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Conv2d(64, 64, 2, 2), # (71, 82) -> (35, 41)
+            nn.Conv2d(64, 64, 3, 2), # (71, 82) -> (35, 40)
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Conv2d(64, 128, 3, 1), # (35, 41) -> (33, 39)
+            nn.Conv2d(64, 128, 3, 1), # (35, 40) -> (33, 38)
             nn.BatchNorm2d(128),
             nn.ReLU(),
 
-            nn.Conv2d(128, 256, 3, 1), # (33, 39) -> (31, 37)
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
         )
         self.fc = nn.Sequential(
-            nn.Linear(256 * 31 * 37, 512),
+            nn.Linear(128 * 33 * 38, 512),
             nn.ReLU(),
         )
 
@@ -181,7 +178,6 @@ class GamePolicy_train():
         self.explore_rate = max(
                 max(config.epsilon_decay ** self.epsilon_epoch, 1 - (1 - config.min_exploration) / config.epsilon_decay_linear_epochs * self.epsilon_epoch),
                 config.min_exploration)
-        self.epoch += 1
         self.epsilon_epoch += 1
         
         self.replay_buffer_file = "replay_buffer.pkl"
@@ -362,16 +358,18 @@ class GamePolicy_train():
         if(os.path.exists("train_data")): 
             with open("train_data/avg_loss.txt", "a") as f:
                 f.write(str((avg_loss / update_num).item()) + "\n")
-        if(os.path.exists("train_data/img.txt")):
-            with open("train_data/img.txt", "a") as f:
-                f.write(str(self.epsilon_epoch+1) + ":" + str(len(self.img_r)) + "\n")
-        if( self.epoch == 1 or
-            (self.epoch - 1 != self.init_epoch and (self.epoch - 1) % config.save_replay_per_epoch == 0)
+        # if(os.path.exists("train_data/img.txt")):
+        #     with open("train_data/img.txt", "a") as f:
+        #         f.write(str(self.epsilon_epoch+1) + ":" + str(len(self.img_r)) + "\n")
+        if( self.epoch == 0 or
+            (self.epoch != self.init_epoch and (self.epoch - 1) % config.save_replay_per_epoch == 0)
             ):
             with open(self.replay_buffer_file, "wb") as f:
                 pkl.dump((self.replay_buffer, self.replay_head), f)
         if(self.epoch % config.update_frequency == 0):
             self.update_target_dqn()
+        self.epsilon_epoch += 1
+        self.epoch += 1
         return avg_loss.item() / update_num
     
     def update_target_dqn(self):
@@ -447,6 +445,10 @@ class GamePolicy_train():
         # with open(self.replay_buffer_file, "wb") as f:
         #     pkl.dump((self.replay_buffer, self.replay_head), f)
         print("neg_reward_num:", nr_num)
+        if(len(self.replay_buffer) == config.replay_buffer_limit):
+            if(os.path.exists("train_data/img.txt")):
+                with open("train_data/img.txt", "a") as f:
+                    f.write(str(self.epsilon_epoch+1) + ":" + str(len(self.img_r)) + "\n")
 
     
     def save_model(self):
