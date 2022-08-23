@@ -5,11 +5,10 @@ import time
 import config
 import torch
 
-train_epoch = 150
-start_epoch = 0
+train_epoch = 200
+start_epoch = 501
 env = TouhouEnvironment()
-policy = GamePolicy_train(True, init_epoch=start_epoch)
-
+policy = GamePolicy_train(use_noisy_net=False, init_epoch=start_epoch, epsilon_offset=130)
 
 pbar = tqdm(range(train_epoch))
 time.sleep(2)
@@ -22,11 +21,14 @@ for _ in pbar:
     while(True):
         if(len(policy.img_r) >= 500):
             print("too much img...")
+            policy.save_checkpoint(str(policy.epsilon_epoch) + "check_point_model.model",
+                "check_point_replay_buffer")
             break
         # start_time = time.perf_counter()
         if(env.is_done()):
             import Move
             Move.ReleaseKey(0x2C)
+            Move.ReleaseKey(0x1D)
             if(len(policy.action_r) > 0):
                 policy.action_r.pop()
                 policy.img_r.pop()
@@ -116,6 +118,8 @@ for _ in pbar:
     #                 cv2.imshow("all r" + str(j) + "_" + str(i), policy.img_r[j][i])
     #                 cv2.waitKey()
     if(len(policy.img_r) >= 500):
+        policy.save_checkpoint(str(policy.epsilon_epoch) + "check_point_model.model",
+                "check_point_replay_buffer")
         print("too much img")
         break
 
@@ -128,8 +132,6 @@ for _ in pbar:
         pbar.set_description("avgloss= None,trained_epochs=%d"%trained_epochs)
     policy.save_model()
 
-    if(trained_epochs >= train_epoch):
-        break
     
         
 

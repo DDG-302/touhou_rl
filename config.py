@@ -16,7 +16,7 @@ if (torch.cuda.is_available()):
 else:
     device = "cpu"
 
-save_replay_per_epoch = 3000
+save_replay_per_epoch = 50
 
 random_seed = int(time.time())
 

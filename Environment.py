@@ -45,6 +45,7 @@ class TouhouEnvironment:
         self.done = False
 
         Move.PressKey(0x2c)
+        Move.PressKey(0x1D)
 
         return config.alive_reward, self.__get_img(), False
 
@@ -133,6 +134,7 @@ class TouhouEnvironment:
             if(current_life_count < 0):
                 self.done = True
                 Move.ReleaseKey(0x2C)
+                Move.ReleaseKey(0x1D)
             reward = config.dead_penalty
             is_dead = True
         else:

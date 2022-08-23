@@ -24,24 +24,32 @@ class DQNNet(nn.Module):
 
         self.use_nosiy_net = use_noisy_net
         self.cnn = nn.Sequential(
-            nn.Conv2d(int(config.img_stack_num), 32, 8, 4), # (290, 335) -> (71, 82)
+            nn.Conv2d(int(config.img_stack_num), 32, 3, 1), # (290, 335) -> (288, 333)
             nn.BatchNorm2d(32),
             nn.ReLU(),
 
-            nn.Conv2d(32, 64, 4, 2), # (71, 82) -> (34, 40)
+            nn.Conv2d(32, 64, 3, 2), # (288, 333) -> (143, 166)
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Conv2d(64, 64, 3, 1), # (34, 40) -> (32, 38)
+            nn.Conv2d(64, 64, 3, 2), # (143, 166) -> (71, 82)
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Conv2d(64, 128, 3, 1), # (32, 38) -> (30, 36)
+            nn.Conv2d(64, 64, 2, 2), # (71, 82) -> (35, 41)
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+
+            nn.Conv2d(64, 128, 3, 1), # (35, 41) -> (33, 39)
             nn.BatchNorm2d(128),
+            nn.ReLU(),
+
+            nn.Conv2d(128, 256, 3, 1), # (33, 39) -> (31, 37)
+            nn.BatchNorm2d(256),
             nn.ReLU(),
         )
         self.fc = nn.Sequential(
-            nn.Linear(128 * 30 * 36, 512),
+            nn.Linear(256 * 31 * 37, 512),
             nn.ReLU(),
         )
 
@@ -145,8 +153,8 @@ class NoisyLayer(nn.Module):
 
 class GamePolicy_train():
     def __init__(self, use_noisy_net:bool, dqnnet=None, init_epoch = 0, epsilon_offset = None) -> None:
-        self.model_save_path = "save_model.model"
-        self.model_load_path = ""
+        self.model_save_path = "500_700_model.model"
+        self.model_load_path = "64_500_model.model"
 
         self.use_noisy_net = use_noisy_net
 
@@ -173,10 +181,13 @@ class GamePolicy_train():
         self.explore_rate = max(
                 max(config.epsilon_decay ** self.epsilon_epoch, 1 - (1 - config.min_exploration) / config.epsilon_decay_linear_epochs * self.epsilon_epoch),
                 config.min_exploration)
+        self.epoch += 1
+        self.epsilon_epoch += 1
         
-        self.replay_buffer_file = "records.pkl"
+        self.replay_buffer_file = "replay_buffer.pkl"
 
         if(os.path.exists(self.replay_buffer_file)):
+            print("load replay buffer...")
             with open(self.replay_buffer_file, "rb") as f:
                 self.replay_buffer, self.replay_head = pkl.load(f)
         else:
@@ -240,7 +251,7 @@ class GamePolicy_train():
                 print(net_result)
                 print(action)
         else:
-            print("no noisy")
+            # print("no noisy")
             # if(len(self.replay_buffer) < config.replay_buffer_limit and rand < 0.5):
             #     action = random.randint(0, 4)
             if(rand < self.explore_rate):
@@ -354,9 +365,9 @@ class GamePolicy_train():
         if(os.path.exists("train_data/img.txt")):
             with open("train_data/img.txt", "a") as f:
                 f.write(str(self.epsilon_epoch+1) + ":" + str(len(self.img_r)) + "\n")
-        self.epoch += 1
-        self.epsilon_epoch += 1
-        if(self.epoch % config.save_replay_per_epoch == 0 and self.epoch != 0):
+        if( self.epoch == 1 or
+            (self.epoch - 1 != self.init_epoch and (self.epoch - 1) % config.save_replay_per_epoch == 0)
+            ):
             with open(self.replay_buffer_file, "wb") as f:
                 pkl.dump((self.replay_buffer, self.replay_head), f)
         if(self.epoch % config.update_frequency == 0):
@@ -440,6 +451,11 @@ class GamePolicy_train():
     
     def save_model(self):
         torch.save(self.dqnnet, self.model_save_path)
+
+    def save_checkpoint(self, model_name, replay_name):
+        with open(replay_name, "wb") as f:
+            pkl.dump(self.replay_buffer, f)
+        torch.save(self.dqnnet, model_name)
 
     def __load_model(self):
         if(os.path.exists(self.model_load_path)):
