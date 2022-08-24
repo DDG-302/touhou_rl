@@ -24,29 +24,24 @@ class DQNNet(nn.Module):
 
         self.use_nosiy_net = use_noisy_net
         self.cnn = nn.Sequential(
-            nn.Conv2d(int(config.img_stack_num), 32, 2, 2), # (290, 335) -> (145, 167)
+            nn.Conv2d(int(config.img_stack_num), 32, 8, 4), # (290, 335) -> (71, 82)
             nn.BatchNorm2d(32),
             nn.ReLU(),
 
-            nn.Conv2d(32, 64, 3, 1), # (145, 167) -> (143, 165)
+            nn.Conv2d(32, 64, 4, 2), # (71, 82) -> (34, 40)
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Conv2d(64, 64, 3, 2), # (143, 165) -> (71, 82)
+            nn.Conv2d(64, 64, 3, 1), # (34, 40) -> (32, 38)
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
-            nn.Conv2d(64, 64, 3, 2), # (71, 82) -> (35, 40)
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-
-            nn.Conv2d(64, 128, 3, 1), # (35, 40) -> (33, 38)
+            nn.Conv2d(64, 128, 3, 1), # (32, 38) -> (30, 36)
             nn.BatchNorm2d(128),
             nn.ReLU(),
-
         )
         self.fc = nn.Sequential(
-            nn.Linear(128 * 33 * 38, 512),
+            nn.Linear(128 * 30 * 36, 512),
             nn.ReLU(),
         )
 
@@ -150,7 +145,7 @@ class NoisyLayer(nn.Module):
 
 class GamePolicy_train():
     def __init__(self, use_noisy_net:bool, dqnnet=None, init_epoch = 0, epsilon_offset = None) -> None:
-        self.model_save_path = "500_700_model.model"
+        self.model_save_path = "0_500_model.model"
         self.model_load_path = "64_500_model.model"
 
         self.use_noisy_net = use_noisy_net

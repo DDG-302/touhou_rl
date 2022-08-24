@@ -8,7 +8,7 @@ import torch
 train_epoch = 500
 start_epoch = 0
 env = TouhouEnvironment()
-policy = GamePolicy_train(use_noisy_net=False, init_epoch=start_epoch, epsilon_offset=100000)
+policy = GamePolicy_train(use_noisy_net=False, init_epoch=start_epoch)
 
 pbar = tqdm(range(train_epoch))
 time.sleep(2)
@@ -24,7 +24,7 @@ for _ in pbar:
         #     policy.save_checkpoint(str(policy.epsilon_epoch) + "check_point_model.model",
         #         "check_point_replay_buffer")
         #     break
-        start_time = time.perf_counter()
+        # start_time = time.perf_counter()
         if(env.is_done()):
             import Move
             Move.ReleaseKey(0x2C)
@@ -63,11 +63,8 @@ for _ in pbar:
         else:
             # 非None则根据返回值移动，并保存游戏记录
             action, state = rtn
-            try:
-                reward, img, is_dead = env.step(action)
-            except:
-                policy.save_checkpoint(str(policy.epsilon_epoch) + "_check_point_model.model",
-                "check_point_replay_buffer.pkl")
+            reward, img, is_dead = env.step(action)
+            
             # if(len(policy.is_dead_r) > 0 and is_dead):
             #     policy.is_dead_r[len(policy.is_dead_r)-1] = is_dead
             #     policy.reward_r[len(policy.reward_r)-1] = config.dead_penalty
@@ -90,8 +87,8 @@ for _ in pbar:
             #     cv2.waitKey()
 
         
-        end_time = time.perf_counter()
-        print("dleta time=", end_time-start_time)
+        # end_time = time.perf_counter()
+        # print("dleta time=", end_time-start_time)
         if(env.done):
 
             if(len(policy.is_dead_r) != 0):

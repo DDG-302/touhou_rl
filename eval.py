@@ -3,7 +3,7 @@ from Policy import GamePolicy_eval
 from Environment import TouhouEnvironment
 import time
 
-policy = GamePolicy_eval("500_528_model.model", False)
+policy = GamePolicy_eval("0_500_model.model", False)
 
 env = TouhouEnvironment()
 
