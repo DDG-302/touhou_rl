@@ -145,7 +145,7 @@ class NoisyLayer(nn.Module):
 
 class GamePolicy_train():
     def __init__(self, use_noisy_net:bool, dqnnet=None, init_epoch = 0, epsilon_offset = None) -> None:
-        self.model_save_path = "0_500_model.model"
+        self.model_save_path = "debug.model"
         self.model_load_path = "64_500_model.model"
 
         self.use_noisy_net = use_noisy_net
@@ -356,11 +356,11 @@ class GamePolicy_train():
         # if(os.path.exists("train_data/img.txt")):
         #     with open("train_data/img.txt", "a") as f:
         #         f.write(str(self.epsilon_epoch+1) + ":" + str(len(self.img_r)) + "\n")
-        if( self.epoch == 0 or
-            (self.epoch != self.init_epoch and (self.epoch - 1) % config.save_replay_per_epoch == 0)
-            ):
-            with open(self.replay_buffer_file, "wb") as f:
-                pkl.dump((self.replay_buffer, self.replay_head), f)
+        # if( self.epoch == 0 or
+        #     (self.epoch != self.init_epoch and (self.epoch - 1) % config.save_replay_per_epoch == 0)
+        #     ):
+        #     with open(self.replay_buffer_file, "wb") as f:
+        #         pkl.dump((self.replay_buffer, self.replay_head), f)
         if(self.epoch % config.update_frequency == 0):
             self.update_target_dqn()
         self.epsilon_epoch += 1
