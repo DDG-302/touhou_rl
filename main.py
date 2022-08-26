@@ -5,8 +5,8 @@ import time
 import config
 import torch
 
-train_epoch = 500
-start_epoch = 0
+train_epoch = 100
+start_epoch = 600
 env = TouhouEnvironment()
 policy = GamePolicy_train(use_noisy_net=False, init_epoch=start_epoch)
 
@@ -27,7 +27,7 @@ for _ in pbar:
         # start_time = time.perf_counter()
         if(env.is_done()):
             import Move
-            Move.ReleaseKey(0x2C)
+            # Move.ReleaseKey(0x2C)
             Move.ReleaseKey(0x1D)
             if(len(policy.action_r) > 0):
                 policy.action_r.pop()
@@ -40,13 +40,13 @@ for _ in pbar:
                 policy.reward_r[len(policy.reward_r)-1] = config.dead_penalty
             print("game over1...")  
             
-            policy.make_record()   
+            # policy.make_record()   
 
-            if(len(policy.replay_buffer) < config.replay_buffer_limit):
-                time.sleep(1)
-                reward, img, is_dead = env.reset()
-                policy.reset()
-                continue       
+            # if(len(policy.replay_buffer) < config.replay_buffer_limit):
+            #     time.sleep(1)
+            #     reward, img, is_dead = env.reset()
+            #     policy.reset()
+            #     continue       
             break  
         rtn = policy.sample_action(img)
         if(rtn == None):
@@ -96,13 +96,13 @@ for _ in pbar:
                 policy.reward_r[len(policy.reward_r)-1] = config.dead_penalty
             print("game over2...")     
 
-            policy.make_record()
+            # policy.make_record()
 
-            if(len(policy.replay_buffer) < config.replay_buffer_limit):
-                time.sleep(1)
-                reward, img, is_dead = env.reset()
-                policy.reset()
-                continue           
+            # if(len(policy.replay_buffer) < config.replay_buffer_limit):
+            #     time.sleep(1)
+            #     reward, img, is_dead = env.reset()
+            #     policy.reset()
+            #     continue           
             break    
     # import cv2
     # for i in range(len(policy.img_r[len(policy.img_r)-1])):
@@ -129,7 +129,7 @@ for _ in pbar:
     #             "check_point_replay_buffer")
     #     print("too much img")
     #     break
-
+    policy.make_record()
     loss = policy.train()
 
     if(loss is not None):

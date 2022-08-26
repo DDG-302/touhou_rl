@@ -3,7 +3,7 @@ from Policy import GamePolicy_eval
 from Environment import TouhouEnvironment
 import time
 
-policy = GamePolicy_eval("64_500_model知道左右走-不会只超一个方向动.model", False)
+policy = GamePolicy_eval("easy_boss-600-700.model", False)
 
 env = TouhouEnvironment()
 
